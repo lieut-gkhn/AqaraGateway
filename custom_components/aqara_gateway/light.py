@@ -133,15 +133,13 @@ class GatewayLight(GatewayGenericDevice, LightEntity):
                 self._attr_color_temp_kelvin = color_util.color_temperature_mired_to_kelvin(data[ATTR_COLOR_TEMP])
             if ATTR_RGB_COLOR in data:
                 _LOGGER.warning("RGB_COLOR = %r (%s)", data[ATTR_RGB_COLOR], type(data[ATTR_RGB_COLOR]))
-                value = data[ATTR_RGB_COLOR]
-
-                if isinstance(value, tuple):
-                    x_val, y_val = value
+                if isinstance(data[ATTR_RGB_COLOR], tuple):
+                    self._attr_rgb_color = data[ATTR_RGB_COLOR]
                 else:
-                    x_val = (value >> 16) / 65535.0
-                    y_val = (value & 0xFFFF) / 65535.0
-
-                self._attr_rgb_color = color_util.color_xy_to_RGB(x_val, y_val)
+                    x_val = float(data[ATTR_RGB_COLOR] / (2 ** 16))
+                    y_val = float(data[ATTR_RGB_COLOR] - x_val)
+                    self._attr_rgb_color = color_util.color_xy_to_RGB(x_val, y_val)
+                
             if ATTR_HS_COLOR in data:
                 if self.device['type'] == 'zigbee':
                     if isinstance(data[ATTR_HS_COLOR], int):
