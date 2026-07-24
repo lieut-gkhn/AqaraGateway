@@ -495,6 +495,11 @@ class Gateway:
                     )
                     self.debug(f"SETUP PARAM: {device['model']} -> {param}")
                     domain = param[3]
+                    _LOGGER.warning(
+                        "ATTR=%s DOMAIN=%s",
+                        param[2],
+                        domain,
+        )
                     if not domain:
                         continue
                         self.debug(f"DOMAIN = {domain}")
