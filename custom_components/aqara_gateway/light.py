@@ -182,13 +182,18 @@ class GatewayLight(GatewayGenericDevice, LightEntity):
 
         if ATTR_RGB_COLOR in kwargs:
             self._attr_rgb_color = kwargs[ATTR_RGB_COLOR]
+            self._attr_hs_color = color_util.color_RGB_to_hs(*self._attr_rgb_color)
 
         if ATTR_HS_COLOR in kwargs:
             self._attr_hs_color = kwargs[ATTR_HS_COLOR]
 
-        if (ATTR_HS_COLOR in kwargs or ATTR_BRIGHTNESS in kwargs):
-            if self._attr_hs_color:
-                payload[ATTR_HS_COLOR] = color_util.color_temperature_kelvin_to_mired(self._attr_color_temp_kelvin)
+        if (
+            ATTR_HS_COLOR in kwargs
+            or ATTR_RGB_COLOR in kwargs
+            or ATTR_BRIGHTNESS in kwargs
+        ):
+        if self._attr_hs_color:
+#                payload[ATTR_HS_COLOR] = color_util.color_temperature_kelvin_to_mired(self._attr_color_temp_kelvin)
                 rgb = color_util.color_hs_to_RGB(*self._attr_hs_color)
                 rgba = (self._attr_brightness,) + rgb
                 if isinstance(self._attr_brightness, int):
