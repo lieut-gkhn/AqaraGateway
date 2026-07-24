@@ -181,6 +181,7 @@ class GatewayLight(GatewayGenericDevice, LightEntity):
             payload[ATTR_COLOR_TEMP] = color_util.color_temperature_kelvin_to_mired(self._attr_color_temp_kelvin)
 
         if ATTR_RGB_COLOR in kwargs:
+            self._attr_brightness = 100
             self._attr_rgb_color = kwargs[ATTR_RGB_COLOR]
             self._attr_hs_color = color_util.color_RGB_to_hs(*self._attr_rgb_color)
 
@@ -204,13 +205,13 @@ class GatewayLight(GatewayGenericDevice, LightEntity):
                             payload[ATTR_HS_COLOR] = rgbhex
                         else:
                             payload[ATTR_HS_COLOR] = rgbhex
-        if ATTR_RGB_COLOR in kwargs and self._attr_rgb_color:
-            x_val, y_val = color_util.color_RGB_to_xy(*kwargs[ATTR_RGB_COLOR])
-            payload[ATTR_RGB_COLOR] = int(x_val * 65535) * (2 ** 16) + int(y_val * 65535)
+#        if ATTR_RGB_COLOR in kwargs and self._attr_rgb_color:
+#            x_val, y_val = color_util.color_RGB_to_xy(*kwargs[ATTR_RGB_COLOR])
+#            payload[ATTR_RGB_COLOR] = int(x_val * 65535) * (2 ** 16) + int(y_val * 65535)
 
         if not payload:
-            payload[self._attr] = 1
-
+            payload[ATTR_HS_COLOR] = 0xFFFFFFFF
+    
         try:
             if self.gateway.send(self.device, payload):
                 self._state = True
