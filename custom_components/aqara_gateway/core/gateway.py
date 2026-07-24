@@ -488,6 +488,11 @@ class Gateway:
                         self.setups['sensor'](self, device, 'last_seen')
 
                 for param in (device['params'] or device['mi_spec']):
+                    _LOGGER.warning(
+                        "DEVICE=%s PARAMS=%s",
+                        device["model"],
+                        device["params"] or device["mi_spec"],
+                    )
                     self.debug(f"SETUP PARAM: {device['model']} -> {param}")
                     domain = param[3]
                     if not domain:
