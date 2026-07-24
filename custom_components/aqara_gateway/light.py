@@ -192,18 +192,18 @@ class GatewayLight(GatewayGenericDevice, LightEntity):
             or ATTR_RGB_COLOR in kwargs
             or ATTR_BRIGHTNESS in kwargs
         ):
-        if self._attr_hs_color:
-#                payload[ATTR_HS_COLOR] = color_util.color_temperature_kelvin_to_mired(self._attr_color_temp_kelvin)
-                rgb = color_util.color_hs_to_RGB(*self._attr_hs_color)
-                rgba = (self._attr_brightness,) + rgb
-                if isinstance(self._attr_brightness, int):
-                    rgbhex = binascii.hexlify(
-                        struct.pack("BBBB", *rgba)).decode("ASCII")
-                    rgbhex = int(rgbhex, 16)
-                    if self.device['type'] == 'zigbee':
-                        payload[ATTR_HS_COLOR] = rgbhex
-                    else:
-                        payload[ATTR_HS_COLOR] = rgbhex
+            if self._attr_hs_color:
+    #                payload[ATTR_HS_COLOR] = color_util.color_temperature_kelvin_to_mired(self._attr_color_temp_kelvin)
+                    rgb = color_util.color_hs_to_RGB(*self._attr_hs_color)
+                    rgba = (self._attr_brightness,) + rgb
+                    if isinstance(self._attr_brightness, int):
+                        rgbhex = binascii.hexlify(
+                            struct.pack("BBBB", *rgba)).decode("ASCII")
+                        rgbhex = int(rgbhex, 16)
+                        if self.device['type'] == 'zigbee':
+                            payload[ATTR_HS_COLOR] = rgbhex
+                        else:
+                            payload[ATTR_HS_COLOR] = rgbhex
         if ATTR_RGB_COLOR in kwargs and self._attr_rgb_color:
             x_val, y_val = color_util.color_RGB_to_xy(*kwargs[ATTR_RGB_COLOR])
             payload[ATTR_RGB_COLOR] = int(x_val * 65535) * (2 ** 16) + int(y_val * 65535)
