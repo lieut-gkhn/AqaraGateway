@@ -488,9 +488,11 @@ class Gateway:
                         self.setups['sensor'](self, device, 'last_seen')
 
                 for param in (device['params'] or device['mi_spec']):
+                    self.debug(f"SETUP PARAM: {device['model']} -> {param}")
                     domain = param[3]
                     if not domain:
                         continue
+                        self.debug(f"DOMAIN = {domain}")
 
                     # wait domain init
                     while domain not in self.setups and timeout > 0:
@@ -501,6 +503,7 @@ class Gateway:
                             device['type'] == 'gateway'):
                         self._gateway_did = device['did']
 
+                    self.debug(f"CREATE ENTITY: {domain} / {attr}")
                     self.setups[domain](self, device, attr)
 
             if self.options.get('stats'):
