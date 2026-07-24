@@ -69,21 +69,25 @@ class AqaraGatewayAlarm(GatewayGenericDevice, AlarmControlPanelEntity):
             return True
         return False
 
-    @property
+        @property
     def icon(self):
-            @property
-    def alarm_state(self):
-        """Return current alarm state."""
-        return self._state
         """return icon."""
         return "mdi:shield-home"
 
     @property
+    def alarm_state(self):
+        """Return current alarm state."""
+        return self._state
+
+    @property
     def supported_features(self):
         """Flag supported features."""
-        return (AlarmControlPanelEntityFeature.ARM_HOME | AlarmControlPanelEntityFeature.ARM_AWAY |
-                AlarmControlPanelEntityFeature.ARM_NIGHT)
-
+        return (
+            AlarmControlPanelEntityFeature.ARM_HOME
+            | AlarmControlPanelEntityFeature.ARM_AWAY
+            | AlarmControlPanelEntityFeature.ARM_NIGHT
+        )
+    
     @property
     def code_arm_required(self):
         """return code arm required."""
