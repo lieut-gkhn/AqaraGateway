@@ -71,6 +71,10 @@ class AqaraGatewayAlarm(GatewayGenericDevice, AlarmControlPanelEntity):
 
     @property
     def icon(self):
+            @property
+    def alarm_state(self):
+        """Return current alarm state."""
+        return self._state
         """return icon."""
         return "mdi:shield-home"
 
