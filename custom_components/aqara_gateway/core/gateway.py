@@ -897,6 +897,12 @@ class Gateway:
             'device_registry_updated', device_registry_updated)
 
     def send(self, device: dict, data: dict):
+        _LOGGER.warning(
+            "SEND device=%s type=%s payload=%s",
+            device.get("model"),
+            device.get("type"),
+            data,
+        )
         """ send command """
         try:
             payload = {}

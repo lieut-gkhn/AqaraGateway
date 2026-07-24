@@ -163,6 +163,12 @@ class GatewayLight(GatewayGenericDevice, LightEntity):
         self.schedule_update_ha_state()
 
     def turn_on(self, **kwargs):
+        _LOGGER.warning(
+            "LIGHT TURN_ON device=%s type=%s data=%s",
+            self.device.get("model"),
+            self.device.get("type"),
+            kwargs,
+        )
         """Turn the light on."""
         payload = {}
 
