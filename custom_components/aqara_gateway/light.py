@@ -132,6 +132,7 @@ class GatewayLight(GatewayGenericDevice, LightEntity):
             if ATTR_COLOR_TEMP in data:
                 self._attr_color_temp_kelvin = color_util.color_temperature_mired_to_kelvin(data[ATTR_COLOR_TEMP])
             if ATTR_RGB_COLOR in data:
+                _LOGGER.warning("RGB_COLOR = %r (%s)", data[ATTR_RGB_COLOR], type(data[ATTR_RGB_COLOR]))
                 value = data[ATTR_RGB_COLOR]
 
                 if isinstance(value, tuple):
