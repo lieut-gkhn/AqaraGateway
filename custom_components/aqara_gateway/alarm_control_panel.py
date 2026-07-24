@@ -146,4 +146,4 @@ class AqaraGatewayAlarm(GatewayGenericDevice, AlarmControlPanelEntity):
     def update(self, *args):
         """Update the alarm status."""
         self._get_state()
-        self.async_write_ha_state()
+        self.schedule_update_ha_state()
