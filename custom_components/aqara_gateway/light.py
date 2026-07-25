@@ -1,7 +1,7 @@
 """Support for Xiaomi/Aqara Light."""
 import binascii
-import struct
 import logging
+import struct
 
 import homeassistant.util.color as color_util
 from homeassistant.components.light import (
@@ -15,18 +15,18 @@ from homeassistant.components.light import (
 )
 
 from . import DOMAIN, GatewayGenericDevice
-from .core.gateway import Gateway
-from .core.utils import Utils
 from .core.const import (
+    ATTR_CHIP_TEMPERATURE,
     ATTR_FW_VER,
     ATTR_HW_VER,
     ATTR_LQI,
-    ATTR_CHIP_TEMPERATURE,
     CHIP_TEMPERATURE,
     FW_VER,
     HW_VER,
-    LQI
+    LQI,
 )
+from .core.gateway import Gateway
+from .core.utils import Utils
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,10 +35,9 @@ ATTR_COLOR_TEMP = "color_temp"
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Perform the setup for Xiaomi/Aqara devices."""
     def setup(gateway: Gateway, device: dict, attr: str):
-        if device['type'] == 'zigbee':
-            async_add_entities([GatewayLight(gateway, device, attr)])
-        elif (device['type'] == 'gateway' and
-                Utils.gateway_light_supported(device['model'])):
+        if (device['type'] == 'zigbee' or 
+                (device['type'] == 'gateway' and
+                Utils.gateway_light_supported(device['model']))):
             async_add_entities([GatewayLight(gateway, device, attr)])
 
     aqara_gateway: Gateway = hass.data[DOMAIN][config_entry.entry_id]
