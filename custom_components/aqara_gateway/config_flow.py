@@ -1,32 +1,45 @@
 """Config flow to configure aqara gateway component."""
+import socket
 from collections import OrderedDict
 from typing import Optional
-import socket
 
-import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.selector import NumberSelector, NumberSelectorConfig, NumberSelectorMode
+import voluptuous as vol
 from homeassistant.config_entries import (
     CONN_CLASS_LOCAL_PUSH,
+    ConfigEntry,
     ConfigFlow,
     OptionsFlow,
-    ConfigEntry
-    )
+)
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PASSWORD, CONF_TOKEN
 from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    #NumberSelector,
+    #NumberSelectorConfig,
+    #NumberSelectorMode,
+)
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.util.network import is_ip_address
 
 from .core import gateway
 from .core.const import (
-    DOMAIN, OPT_DEVICE_NAME, CONF_MODEL, OPT_DEBUG,
-    CONF_DEBUG, CONF_STATS, CONF_NOFFLINE, SUPPORTED_MODELS,
-    CONF_PATCHED_FW, CONF_VRF_UNITS, VRF_DIP_MIN, VRF_DIP_MAX
+    CONF_DEBUG,
+    CONF_MODEL,
+    CONF_NOFFLINE,
+    CONF_PATCHED_FW,
+    CONF_STATS,
+    CONF_VRF_UNITS,
+    DOMAIN,
+    OPT_DEBUG,
+    OPT_DEVICE_NAME,
+    SUPPORTED_MODELS,
+    VRF_DIP_MAX,
+    VRF_DIP_MIN,
 )
 from .core.utils import Utils
 
 
-class AqaraGatewayFlowHandler(ConfigFlow, domain=DOMAIN):
+class AqaraGatewayFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[reportGeneralTypeIssues]
     """Handle a Aqara Gateway config flow."""
 
     VERSION = 1
@@ -61,17 +74,27 @@ class AqaraGatewayFlowHandler(ConfigFlow, domain=DOMAIN):
                 Utils.enable_telnet(self._host, self._token)
             if not self._check_port(23):
                 return self.async_abort(reason="connection_error")
-            ret = gateway.is_aqaragateway(self._host,
-                                            self._password,
-                                            self._model,
-                                            self._patched_fw)
-            if "error" in ret['status']:
+            assert self._host is not None
+            password = self._password or ""
+            model = self._model or ""
+            patched_fw = bool(self._patched_fw)
+            ret = gateway.is_aqaragateway(
+                self._host,
+                password,
+                model,
+                patched_fw,
+            )
+            if not isinstance(ret, dict):
+                return self.async_abort(reason="connection_error")
+            status = ret.get('status')
+            if not status or "error" in status:
                 return self.async_abort(reason="connection_error")
             self._name = ret.get('name', '')
             # change to use long model name
             self._model = ret.get('model', '')
-            if ret['token']:
-                self._token = ret['token']
+            token = ret.get('token')
+            if token:
+                self._token = token
 
             await self.async_set_unique_id(f"aqara_gateway_{self._name}")
 

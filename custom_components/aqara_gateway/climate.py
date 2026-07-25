@@ -2,30 +2,34 @@
 import logging
 from typing import Any
 
-from homeassistant.const import ATTR_TEMPERATURE, PRECISION_WHOLE, UnitOfTemperature
-from homeassistant.helpers import device_registry as dr
-from homeassistant.components.climate import ATTR_CURRENT_TEMPERATURE, ATTR_HVAC_ACTION, ClimateEntity
+from homeassistant.components.climate import (
+    ATTR_CURRENT_TEMPERATURE,
+    ATTR_HVAC_ACTION,
+    ClimateEntity,
+)
 from homeassistant.components.climate.const import (
+    SWING_OFF,
+    SWING_ON,
+    ClimateEntityFeature,
     HVACAction,
     HVACMode,
-    ClimateEntityFeature,
-    SWING_OFF,
-    SWING_ON
 )
+from homeassistant.const import ATTR_TEMPERATURE, PRECISION_WHOLE, UnitOfTemperature
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import DOMAIN, GatewayGenericDevice
-from .core.gateway import Gateway
 from .core.const import (
-    HVAC_MODES,
     AC_STATE_FAN,
     AC_STATE_FAN2,
     AC_STATE_HVAC,
     FAN_MODES,
-    YUBA_STATE_HVAC,
+    HVAC_MODES,
+    VRF_MODELS,
     YUBA_STATE_FAN,
-    VRF_MODELS
+    YUBA_STATE_HVAC,
 )
+from .core.gateway import Gateway
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,7 +73,7 @@ class AqaraGenericClimate(GatewayGenericDevice, ClimateEntity):
         self._current_hvac = None
         self._current_temp = None
         self._fan_mode = None
-        self._hvac_mode = None
+        self._hvac_mode: HVACMode | None = None
         self._swing_mode = None
         self._is_on = None
         self._state = None
@@ -88,9 +92,9 @@ class AqaraGenericClimate(GatewayGenericDevice, ClimateEntity):
         return UnitOfTemperature.CELSIUS
 
     @property
-    def hvac_mode(self) -> str:
+    def hvac_mode(self) -> HVACMode:
         """ return hvac mode """
-        return self._hvac_mode if self._is_on else HVACMode.OFF
+        return self._hvac_mode if self._is_on and self._hvac_mode else HVACMode.OFF
 
     @property
     def hvac_modes(self):
@@ -334,14 +338,13 @@ class AqaraVRFClimate(GatewayGenericDevice, ClimateEntity):
                 elif self._attr_hvac_mode == HVACMode.OFF:
                     self._attr_hvac_mode = HVACMode.COOL
 
-            if keys['mod'] in data:
-                if self._attr_hvac_mode != HVACMode.OFF:
-                    mode_map = {
-                        1: HVACMode.COOL, 2: HVACMode.DRY,
-                        3: HVACMode.FAN_ONLY, 4: HVACMode.HEAT
-                    }
-                    self._attr_hvac_mode = mode_map.get(
-                        data[keys['mod']], HVACMode.COOL)
+            if keys['mod'] in data and self._attr_hvac_mode != HVACMode.OFF:
+                mode_map = {
+                    1: HVACMode.COOL, 2: HVACMode.DRY,
+                    3: HVACMode.FAN_ONLY, 4: HVACMode.HEAT
+                }
+                self._attr_hvac_mode = mode_map.get(
+                    data[keys['mod']], HVACMode.COOL)
 
             if keys['fan'] in data:
                 fan_map = {0: "auto", 1: "low", 2: "medium", 3: "high"}
@@ -365,7 +368,7 @@ class AqaraVRFClimate(GatewayGenericDevice, ClimateEntity):
                             device_entry.id, **dev_info
                         )
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             _LOGGER.error("VRF climate %s update error: %s", self.index, exc)
 
         if self.hass:
@@ -485,7 +488,7 @@ class AqaraClimateYuba(AqaraGenericClimate, ClimateEntity):
 # Towel warmer — DO NOT MODIFY
 # =============================================================================
 class AqaraTowelWarmer(GatewayGenericDevice, ClimateEntity, RestoreEntity):
-    _attr_hvac_modes: list[HVACMode] = [HVACMode.OFF, HVACMode.HEAT]
+    _attr_hvac_modes: list[HVACMode] = [HVACMode.OFF, HVACMode.HEAT]  # noqa: RUF012
     _attr_max_temp: float = 65
     _attr_min_temp: float = 45
     _attr_precision: float = PRECISION_WHOLE

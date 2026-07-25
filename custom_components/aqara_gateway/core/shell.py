@@ -1,16 +1,15 @@
 """ Telnet Shell """
 # pylint: disable=line-too-long
-import time
 import base64
-
-from typing import Union
+import time
 from telnetlib import Telnet
+from typing import Union
 
 from .const import (
-    SIGMASTAR_MODELS,
-    MD5_MOSQUITTO_NEW_ARMV7L,
     MD5_MOSQUITTO_G2HPRO_ARMV7L,
-    MD5_MOSQUITTO_MIPSEL
+    MD5_MOSQUITTO_MIPSEL,
+    MD5_MOSQUITTO_NEW_ARMV7L,
+    SIGMASTAR_MODELS,
 )
 
 WGET = "(wget http://master.dl.sourceforge.net/project/aqarahub/{0}?viasf=1 " \
@@ -49,12 +48,12 @@ class TelnetShell(Telnet):
 
 #        self.run_command("export PS1='# '")
 
-    def run_command(self, command: str, as_bytes=False) -> Union[str, bytes]:
+    def run_command(self, command: str, as_bytes=False) -> str | bytes:
         """Run command and return it result."""
         # pylint: disable=broad-except
         try:
             self.write(command.encode() + b"\n")
-            suffix = "\r\n{}".format(self._suffix)
+            suffix = f"\r\n{self._suffix}"
             raw = self.read_until(suffix.encode(), timeout=15)
         except Exception:
             raw = b''
@@ -66,12 +65,12 @@ class TelnetShell(Telnet):
         if url:
             self.run_command(WGET.format(url, filename))
             return self.check_bin(filename, md5)
-        elif md5 in self.run_command("md5sum /data/bin/{}".format(filename)):
-            return True
-        else:
-            return False
+        output = self.run_command(f"md5sum /data/bin/{filename}")
+        if isinstance(output, bytes):
+            output = output.decode()
+        return md5 in output
 
-    def run_basis_cli(self, command: str, as_bytes=False) -> Union[str, bytes]:
+    def run_basis_cli(self, command: str, as_bytes=False) -> str | bytes:
         """Run command and return it result."""
         command = "basis_cli " + command
         self.write(command.encode() + b"\n")
@@ -80,10 +79,8 @@ class TelnetShell(Telnet):
 
     def file_exist(self, filename: str) -> bool:
         """ check file exit """
-        raw = self.run_command("ls -al {}".format(filename))
-        if "No such" not in str(raw):
-            return True
-        return False
+        raw = self.run_command(f"ls -al {filename}")
+        return "No such" not in str(raw)
 
     def run_public_mosquitto(self, model):
         """ run mosquitto as public """
@@ -103,30 +100,31 @@ class TelnetShell(Telnet):
     def check_public_mosquitto(self) -> bool:
         """ get processes list """
         raw = self.run_command("mosquitto")
+        if isinstance(raw, bytes):
+            raw = raw.decode(errors='ignore')
         if 'Binding listener to interface ""' in raw:
             return True
-        if 'Binding listener to interface ' not in raw:
-            return True
-        return False
+        return 'Binding listener to interface ' not in raw
 
     def get_running_ps(self, ps=None) -> str:
         """ get processes list """
-        if isinstance(ps, str):
-            return self.run_command(f"ps | grep {ps}")
-        return self.run_command("ps")
+        raw = self.run_command(f"ps | grep {ps}") if isinstance(ps, str) else self.run_command("ps")
+        if isinstance(raw, bytes):
+            raw = raw.decode(errors='ignore')
+        return raw
 
     def read_file(self, filename: str, as_base64=False, with_newline=True):
         """ read file content """
         # pylint: disable=broad-except
         try:
             if as_base64:
-                command = "cat {} | base64\n".format(filename)
+                command = f"cat {filename} | base64\n"
                 self.write(command.encode())
                 raw = self.read_until(self._suffix.encode()).decode()
                 if not with_newline:
                     raw = self.read_until(self._suffix.encode()).decode()
                 return base64.b64decode(raw)
-            command = "cat {}\n".format(filename)
+            command = f"cat {filename}\n"
             self.write(command.encode())
             ret = self.read_until(self._suffix.encode()).decode()
             if not with_newline:
@@ -142,10 +140,12 @@ class TelnetShell(Telnet):
         # pylint: disable=broad-except
         try:
             if self._aqara_property:
-                command = "agetprop {}\n\r".format(property_value)
+                command = f"agetprop {property_value}\n\r"
             else:
-                command = "getprop {}\n\r".format(property_value)
+                command = f"getprop {property_value}\n\r"
             ret = self.run_command(command)
+            if isinstance(ret, bytes):
+                ret = ret.decode(errors='ignore')
             if ret.endswith(self._suffix):
                 ret = "".join(ret.rsplit(self._suffix, 1))
             if ret.startswith(self._suffix):
@@ -157,9 +157,9 @@ class TelnetShell(Telnet):
     def set_prop(self, property_value: str, value: str):
         """ set property """
         if self._aqara_property:
-            command = "asetprop {} {}\n".format(property_value, value)
+            command = f"asetprop {property_value} {value}\n"
         else:
-            command = "setprop {} {}\n".format(property_value, value)
+            command = f"setprop {property_value} {value}\n"
         self.write(command.encode() + b"\n")
         self.read_until(self._suffix.encode())
         self.read_until(self._suffix.encode())
@@ -170,9 +170,8 @@ class TelnetShell(Telnet):
 
     def set_audio_volume(self, value):
         """ set gateway audio volume """
-        if value > 100:
-            value = 100
-        command = "-sys -v {}".format(value)
+        value = min(value, 100)
+        command = f"-sys -v {value}"
         raw = self.run_basis_cli(command)
         return raw[raw.find(">>>") + 4:]
 

@@ -213,8 +213,8 @@ class GatewayLight(GatewayGenericDevice, LightEntity):
             if self.gateway.send(self.device, payload):
                 self._state = True
                 self.schedule_update_ha_state()
-        except:
-            _LOGGER.warn(f"send payload {payload} to gateway failed")
+        except:  # noqa: E722
+            _LOGGER.warning(f"send payload {payload} to gateway failed")
 
     def turn_off(self, **kwargs):
         """Turn the light off."""

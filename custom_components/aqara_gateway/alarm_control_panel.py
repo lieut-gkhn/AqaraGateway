@@ -3,13 +3,13 @@
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
-    AlarmControlPanelState
+    AlarmControlPanelState,
 )
 
 from . import DOMAIN, GatewayGenericDevice
 from .core.gateway import Gateway
+from .core.shell import TelnetShell, TelnetShellE1, TelnetShellG3, TelnetShellM2POE
 from .core.utils import Utils
-from .core.shell import TelnetShell, TelnetShellE1, TelnetShellM2POE, TelnetShellG3
 
 ALARM_STATES = [AlarmControlPanelState.ARMED_HOME, AlarmControlPanelState.ARMED_AWAY,
                 AlarmControlPanelState.ARMED_NIGHT, AlarmControlPanelState.DISARMED]
@@ -45,7 +45,7 @@ class AqaraGatewayAlarm(GatewayGenericDevice, AlarmControlPanelEntity):
         attr
     ):
         """Initialize the Alarm Panel."""
-        device_name = Utils.get_device_name(device['model']).lower()
+        device_name = (Utils.get_device_name(device['model']) or "").lower()
         if "e1" in device_name:
             self._shell = TelnetShellE1(gateway.host)
         elif (("m2 2022" in device_name) or ("m1s 2022" in device_name) or
@@ -65,9 +65,7 @@ class AqaraGatewayAlarm(GatewayGenericDevice, AlarmControlPanelEntity):
     @property
     def should_poll(self):
         """return should poll."""
-        if self._shell:
-            return True
-        return False
+        return bool(self._shell)
 
     @property
     def icon(self):
@@ -116,7 +114,13 @@ class AqaraGatewayAlarm(GatewayGenericDevice, AlarmControlPanelEntity):
         self._set_state(2)
 
     def _set_state(self, state):
-        if state in range(0, 3):
+        # If shell is not available, avoid calling its methods
+        if not self._shell:
+            self._state = AlarmControlPanelState.DISARMED
+            self.schedule_update_ha_state()
+            return
+
+        if state in range(3):
             self._shell.set_prop('persist.app.arming_state', str(state))
             value = 'true'
             command = "-arm -g"
@@ -125,11 +129,20 @@ class AqaraGatewayAlarm(GatewayGenericDevice, AlarmControlPanelEntity):
             command = "-arm -u"
         self._shell.set_prop('persist.app.arming_guard', value)
         self._shell.run_basis_cli(command)
-        self._state = ALARM_STATES[state]
+        # Guard index into ALARM_STATES
+        try:
+            self._state = ALARM_STATES[state]
+        except Exception:  # noqa: BLE001
+            self._state = AlarmControlPanelState.DISARMED
         self.schedule_update_ha_state()
 
     def _get_state(self):
+        # Default to disarmed if shell not available
         self._attr_alarm_state = AlarmControlPanelState.DISARMED
+        if not self._shell:
+            self._state = AlarmControlPanelState.DISARMED
+            return
+
         raw = self._shell.get_prop('persist.app.arming_guard')
         if raw == 'true':
             raw = self._shell.get_prop('persist.app.arming_state')
@@ -137,13 +150,16 @@ class AqaraGatewayAlarm(GatewayGenericDevice, AlarmControlPanelEntity):
                 raw = self._shell.get_prop('persist.app.arming_state')
             try:
                 self._state = ALARM_STATES[int(raw)]
-            except Exception:
+            except Exception:  # noqa: BLE001
                 self._state = AlarmControlPanelState.DISARMED
         else:
             self._state = AlarmControlPanelState.DISARMED
     
 
-    def update(self, *args):
-        """Update the alarm status."""
+    def update(self, data=None):
+        """Update the alarm status.
+
+        Signature must match GatewayGenericDevice.update(self, data=...)
+        """
         self._get_state()
         self.schedule_update_ha_state()

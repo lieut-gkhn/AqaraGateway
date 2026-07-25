@@ -1,44 +1,55 @@
 """ Aqara Gateway """
 import asyncio
+import json
+
 # pylint: disable=broad-except
 import logging
+import re
 import socket
 import time
-import json
-import re
-from typing import Optional
-from random import randint
-from paho.mqtt.client import Client, MQTTMessage
 from datetime import datetime
+from random import randint
+from typing import Optional
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant
-from homeassistant.const import CONF_NAME, CONF_PASSWORD, CONF_HOST, MAJOR_VERSION, MINOR_VERSION
-from homeassistant.components.light import ATTR_HS_COLOR, ATTR_RGB_COLOR, ATTR_BRIGHTNESS
-
-from .shell import (
-    TelnetShell,
-    TelnetShellG2H,
-    TelnetShellE1,
-    TelnetShellG3,
-    TelnetShellM2POE
+from homeassistant.components.light import (
+    ATTR_BRIGHTNESS,
+    ATTR_HS_COLOR,
+    ATTR_RGB_COLOR,
 )
-from .utils import DEVICES, Utils, GLOBAL_PROP
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (
+    CONF_HOST,
+    CONF_NAME,
+    CONF_PASSWORD,
+    MAJOR_VERSION,
+    MINOR_VERSION,
+)
+from homeassistant.core import Event, HomeAssistant
+from paho.mqtt.client import Client, MQTTMessage
+
 from .const import (
     CONF_MODEL,
     CONF_VRF_UNITS,
     DOMAIN,
-    SIGMASTAR_MODELS,
-    REALTEK_MODELS,
-    SUPPORTED_MODELS,
     MD5_MOSQUITTO_ARMV7L,
-    MD5_MOSQUITTO_NEW_ARMV7L,
     MD5_MOSQUITTO_G2HPRO_ARMV7L,
     MD5_MOSQUITTO_MIPSEL,
-    VRF_MODELS,
+    MD5_MOSQUITTO_NEW_ARMV7L,
+    REALTEK_MODELS,
+    SIGMASTAR_MODELS,
+    SUPPORTED_MODELS,
+    VRF_DIP_MAX,
     VRF_DIP_MIN,
-    VRF_DIP_MAX
+    VRF_MODELS,
 )
+from .shell import (
+    TelnetShell,
+    TelnetShellE1,
+    TelnetShellG2H,
+    TelnetShellG3,
+    TelnetShellM2POE,
+)
+from .utils import DEVICES, GLOBAL_PROP, Utils
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,7 +93,7 @@ class Gateway:
     @property
     def device(self):
         """ get device """
-        return self.devices[list(self.devices)[0]]
+        return self.devices[next(iter(self.devices))]
 #        return self.devices['lumi.0']
 
     def add_update(self, did: str, handler):
@@ -172,9 +183,8 @@ class Gateway:
                 await self.async_setup_devices(devices)
                 break
 
-        if telnetshell:
-            if self.host not in self.hass.data[DOMAIN]["telnet"]:
-                self.hass.data[DOMAIN]["telnet"].append(self.host)
+        if telnetshell and self.host not in self.hass.data[DOMAIN]["telnet"]:
+            self.hass.data[DOMAIN]["telnet"].append(self.host)
 
         while not self.available:
             self._mqttc.loop_stop()
@@ -190,15 +200,14 @@ class Gateway:
             self.available = True
 #            self._mqttc.loop_forever()
 
-        if self.available:
-            if self.host not in self.hass.data[DOMAIN]["mqtt"]:
-                self.hass.data[DOMAIN]["mqtt"].append(self.host)
+        if self.available and self.host not in self.hass.data[DOMAIN]["mqtt"]:
+            self.hass.data[DOMAIN]["mqtt"].append(self.host)
 
     def _mqtt_connect(self) -> bool:
         try:
             self._mqttc.reconnect()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
 
     def _check_port(self, port: int):
@@ -261,10 +270,8 @@ class Gateway:
                 shell.run_public_mosquitto(self._model)
                 processes = shell.get_running_ps("mosquitto")
 
-            if "mosquitto" not in processes:
-                if not public_mosquitto:
-                    if "/data/bin/mosquitto" not in processes:
-                        shell.run_public_mosquitto(self._model)
+            if "mosquitto" not in processes and not public_mosquitto and "/data/bin/mosquitto" not in processes:
+                shell.run_public_mosquitto(self._model)
 
             if get_devices:
                 devices = self._get_devices(shell)
@@ -272,11 +279,11 @@ class Gateway:
                 return devices
             return True
 
-        except (ConnectionRefusedError, socket.timeout):
+        except (TimeoutError, ConnectionRefusedError):
             return False
 
-        except Exception as expt:
-            self.debug("Can't read devices: {}".format(expt))
+        except Exception as expt:  # noqa: BLE001
+            self.debug(f"Can't read devices: {expt}")
             return False
 
     def _get_devices(self, shell):
@@ -393,7 +400,7 @@ class Gateway:
             if len(zb_device) >= 1:
                 raw = shell.read_file(zb_device, with_newline=False)
             else:
-                device_info_path = '{}/zigbee/device.info'.format(Utils.get_info_store_path(self._model))
+                device_info_path = f'{Utils.get_info_store_path(self._model)}/zigbee/device.info'
                 if not shell.file_exist(device_info_path):
                     device_info_path = '/mnt/config/zigbee/device.info'
                 raw = shell.read_file(device_info_path)
@@ -423,8 +430,8 @@ class Gateway:
                     'status': dev['status']
                 }
                 devices.append(device)
-        except Exception as e:
-            self.debug("Can't get devices: {}".format(e))
+        except Exception as e:  # noqa: BLE001
+            self.debug(f"Can't get devices: {e}")
 
         return devices
 
@@ -435,12 +442,13 @@ class Gateway:
             if device['type'] in ('gateway', 'zigbee'):
                 desc = Utils.get_device(device['model'], self.cloud)
                 if not desc:
-                    self.debug("Unsupported model: {}".format(device))
+                    self.debug(f"Unsupported model: {device}")
                     continue
 
                 device.update(desc)
 
                 # update params from config
+                assert self.default_devices is not None
                 default_config = (
                         self.default_devices.get(device['mac']) or
                         self.default_devices.get(device['did'])
@@ -540,8 +548,8 @@ class Gateway:
         if 'lumi.0' not in self._extra_state_attributes:
             return
 
+        data = {}
         if payload:
-            data = {}
             for param in payload:
                 if 'networkUp' in param:
                     # {"networkUp":false}
@@ -557,14 +565,12 @@ class Gateway:
                         'free_mem': param['value']['free_mem'],
                         'load_avg': param['value']['load_avg'],
                         'rssi': -param['value']['rssi'],
-                        'uptime': "{:02}:{:02}:{:02}".format(
-                            hours, mintues, seconds),
+                        'uptime': f"{hours:02}:{mintues:02}:{seconds:02}",
                     }
 
                 prop = None
-                if 'res_name' in param:
-                    if param['res_name'] in GLOBAL_PROP:
-                        prop = GLOBAL_PROP[param['res_name']]
+                if 'res_name' in param and param['res_name'] in GLOBAL_PROP:
+                    prop = GLOBAL_PROP[param['res_name']]
                 if prop == 'report':
                     report_list = param['value'].split(',')
                     stat = {}
@@ -573,11 +579,10 @@ class Gateway:
                             ':', 1) if 'time' in item else item.lstrip(
                                 ).strip().split(' '))
                         data.update(dict(zip(stat, stat)))
-            device_name = Utils.get_device_name(self._model).lower()
+            device_name = Utils.get_device_name(self._model).lower() # type: ignore
             shell = self._get_shell(device_name)
             shell.login()
-            raw = shell.read_file('{}/zigbee/networkBak.info'.format(
-                Utils.get_info_store_path(self._model)), with_newline=False)
+            raw = shell.read_file(f'{Utils.get_info_store_path(self._model)}/zigbee/networkBak.info', with_newline=False)
             shell.close()
             if len(raw) >= 1:
                 value = json.loads(raw)
@@ -616,10 +621,9 @@ class Gateway:
 
         if 'mqtt' in self._debug:
             try:
-                self.debug("MQTT on_message: {} {}".format(
-                    topic, msg.payload.decode()))
+                self.debug(f"MQTT on_message: {topic} {msg.payload.decode()}")
             except UnicodeDecodeError:
-                self.debug("MQTT on_message: {}".format(topic))
+                self.debug(f"MQTT on_message: {topic}")
                 self.debug(msg.payload)
 
         if topic == 'log/camera':
@@ -631,16 +635,7 @@ class Gateway:
             self.debug("Decoding JSON failed")
             return
 
-        if topic == 'zigbee/send':
-            payload = json.loads(msg.payload)
-            self._process_message(payload)
-        elif topic == 'ioctl/send':
-            payload = json.loads(msg.payload)
-            self._process_message(payload)
-        elif topic == 'ioctl/recv':
-            payload = json.loads(msg.payload)
-            self._process_message(payload)
-        elif topic == 'debug/host':
+        if topic == 'zigbee/send' or topic == 'ioctl/send' or topic == 'ioctl/recv' or topic == 'debug/host':
             payload = json.loads(msg.payload)
             self._process_message(payload)
 
@@ -659,10 +654,9 @@ class Gateway:
             shell.login()
             zb_device = shell.get_prop("sys.zb_device")
             if len(zb_device) >= 1:
-                raw = shell.read_file(zb_device, with_newline=False)
+                raw = shell.read_file(zb_device, with_newline=False) # type: ignore
             else:
-                raw = shell.read_file('{}/zigbee/device.info'.format(
-                    Utils.get_info_store_path(self._model)), with_newline=False)
+                raw = shell.read_file(f'{Utils.get_info_store_path(self._model)}/zigbee/device.info', with_newline=False)
 
             shell.close()
             value = json.loads(raw)
@@ -677,20 +671,19 @@ class Gateway:
                     ))
                     continue
 
-                if prop == 'paring':
-                    if dev['did'] not in self.devices:
-                        device = {
-                            'coordinator': 'lumi.0',
-                            'did': dev['did'],
-                            'mac': dev['mac'],
-                            'model': dev['model'],
-                            'type': 'zigbee',
-                            'zb_ver': dev.get('zb_ver', "1.2"),
-                            'model_ver': dev['model_ver'],
-                            'status': dev['status']
-                        }
-                        self.hass.create_task(self.async_setup_devices([device]))
-                        break
+                if prop == 'paring' and dev['did'] not in self.devices:
+                    device = {
+                        'coordinator': 'lumi.0',
+                        'did': dev['did'],
+                        'mac': dev['mac'],
+                        'model': dev['model'],
+                        'type': 'zigbee',
+                        'zb_ver': dev.get('zb_ver', "1.2"),
+                        'model_ver': dev['model_ver'],
+                        'status': dev['status']
+                    }
+                    self.hass.create_task(self.async_setup_devices([device]))
+                    break
 
     def _process_message(self, data: dict):
         # pylint: disable=too-many-branches, too-many-statements
@@ -706,15 +699,13 @@ class Gateway:
             pkey = 'params' if 'params' in data else 'mi_spec'
         elif data['cmd'] in ('write_rsp', 'read_rsp'):
             pkey = 'results' if 'results' in data else 'mi_spec'
-        elif data['cmd'] == 'write_ack':
-            return
-        elif data['cmd'] == 'behaved':
+        elif data['cmd'] == 'write_ack' or data['cmd'] == 'behaved':
             return
         elif data['cmd'] == 'control':
             data['did'] = 'lumi.0'
             pkey = 'control'
         else:
-            _LOGGER.warning("Unsupported cmd: {}".format(data))
+            _LOGGER.warning(f"Unsupported cmd: {data}")
             return
 
         if pkey == 'mi_spec' and pkey not in data:
@@ -759,7 +750,7 @@ class Gateway:
                     for handler in self.updates[self._gateway_did]:
                         handler(payload)
                 elif data.get('from', '') != 'ha':
-                    _LOGGER.warning("Unsupported cmd: {}".format(data))
+                    _LOGGER.warning(f"Unsupported cmd: {data}")
                 return
 
 
@@ -851,7 +842,7 @@ class Gateway:
                 value = param['value']
                 # Strip control characters from VRF string values
                 if isinstance(value, str):
-                    value = value.rstrip('\x00\x08\b')
+                    value = value.rstrip('\x00\x08\b')  # noqa: B005
                 payload[prop] = value
             elif 'arguments' in param:
                 if prop == 'motion':
@@ -1017,7 +1008,7 @@ def prepare_aqaragateway(shell, model):
 def is_aqaragateway(host: str,
                     password: str,
                     device_name: str,
-                    patched_fw: bool) -> Optional[dict]:
+                    patched_fw: bool) -> dict | None:
     """return name if is supported gateway"""
     result = {}
     result['status'] = 'error'
@@ -1030,12 +1021,16 @@ def is_aqaragateway(host: str,
             if device_name and 'g2h' in device_name:
                 shell = TelnetShellG2H(host, password)
                 shell.login()
-                raw = str(shell.read_file('/etc/build.prop'))
+                raw = shell.read_file('/etc/build.prop')
+                if isinstance(raw, bytes):
+                    raw = raw.decode(errors='ignore')
                 data = re.search(r"ro\.sys\.name=([a-zA-Z0-9.-]+).+", raw)
                 name = data.group(1) if data else ''
                 data = re.search(r"ro\.sys\.model=([a-zA-Z0-9.-]+).+", raw)
                 model = data.group(1) if data else ''
-                raw = str(shell.read_file('/mnt/config/miio/device.conf'))
+                raw = shell.read_file('/mnt/config/miio/device.conf')
+                if isinstance(raw, bytes):
+                    raw = raw.decode(errors='ignore')
                 data = re.search(r"mac=([a-zA-Z0-9:]+).+", raw)
                 mac = data.group(1) if data else ''
             elif device_name:
@@ -1053,6 +1048,8 @@ def is_aqaragateway(host: str,
                     shell = TelnetShell(host, password)
                 shell.login()
                 prop_raw = shell.get_prop("")
+                if isinstance(prop_raw, bytes):
+                    prop_raw = prop_raw.decode(errors='ignore')
                 if 'g2h pro' in device_name:
                     data = re.search(r"\[ro\.sys\.model\]: \[([a-zA-Z0-9.-]+)\]", prop_raw)
                     model = data.group(1) if data else shell.get_prop("ro.sys.model")
@@ -1067,13 +1064,13 @@ def is_aqaragateway(host: str,
             else:
                 return result
 
-        except (ConnectionError, EOFError, socket.error):
+        except (OSError, ConnectionError, EOFError):
             result['status'] = "connection_error"
             return result
 
         if model in DEVICES[0]:
             result[CONF_NAME] = "{}-{}".format(
-                name, mac[-5:].upper().replace(":", ""))
+                name, mac[-5:].upper().replace(":", "")) # type: ignore
             result['model'] = model
             result['status'] = 'ok'
             result['token'] = token

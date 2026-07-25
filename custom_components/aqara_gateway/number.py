@@ -1,7 +1,7 @@
 from homeassistant.components.number import (
     NumberDeviceClass,
-    RestoreNumber,
     NumberEntityDescription,
+    RestoreNumber,
 )
 from homeassistant.const import EntityCategory, UnitOfTime
 

@@ -23,10 +23,10 @@ async def system_health_info(hass):
 
     telnet = hass.data[DOMAIN].get("telnet", [])
     for i in telnet:
-        data["telnet_logged"] += "{}\n".format(i)
+        data["telnet_logged"] += f"{i}\n"
 
     mqtt = hass.data[DOMAIN].get('mqtt', [])
     for i in mqtt:
-        data["mqtt_connected"] += "{}\n".format(i)
+        data["mqtt_connected"] += f"{i}\n"
 
     return data

@@ -1,65 +1,65 @@
 """Support for Xiaomi Aqara sensors."""
 from datetime import timedelta
+from typing import Optional
 
-from homeassistant.util.dt import now, utc_from_timestamp
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import (
     ATTR_BATTERY_LEVEL,
     ATTR_VOLTAGE,
-    EntityCategory,
     STATE_PROBLEM,
+    EntityCategory,
 )
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.util.dt import now
 
 from . import DOMAIN, GatewayGenericDevice
-from .core.gateway import Gateway
-from .core.utils import CLUSTERS, Utils
 from .core.const import (
-    ICONS,
-    UNITS,
+    APPROACHING_DISTANCE,
+    ATTR_APPROACHING_DISTANCE,
     ATTR_CHIP_TEMPERATURE,
-    ATTR_LQI,
-    BATTERY,
-    BACK_VERSION,
-    CHIP_TEMPERATURE,
-    LQI,
-    LOAD_POWER,
-    POWER,
-    VOLTAGE,
+    ATTR_DETECTING_REGION,
+    ATTR_EXITS_ENTRANCES_REGION,
     ATTR_FW_VER,
-    ATTR_NOTIFICATION,
-    ATTR_LOCK_STATUS,
+    ATTR_INTERFERENCE_REGION,
     ATTR_LATCH_STATUS,
     ATTR_LI_BATTERY,
     ATTR_LI_BATTERY_TEMP,
-    LOCK_STATE,
-    LOCK_STATUS,
-    LOCK_STATUS_TYPE,
-    LATCH_STATUS_TYPE,
-    LATCH_STATUS,
-    LI_BATTERY,
-    LI_BATTERY_TEMP,
-    APPROACHING_DISTANCE,
+    ATTR_LOCK_STATUS,
+    ATTR_LQI,
+    ATTR_MONITORING_MODE,
+    ATTR_NOTIFICATION,
+    ATTR_REVERTED_MODE,
+    BACK_VERSION,
+    BATTERY,
+    CHIP_TEMPERATURE,
     DETECTING_REGION,
     EXITS_ENTRANCES_REGION,
+    ICONS,
     INTERFERENCE_REGION,
+    LATCH_STATUS,
+    LATCH_STATUS_TYPE,
+    LI_BATTERY,
+    LI_BATTERY_TEMP,
+    LOAD_POWER,
+    LOCK_STATE,
+    LOCK_STATUS_TYPE,
+    LQI,
     MONITORING_MODE,
+    POWER,
     REVERTED_MODE,
-    ATTR_APPROACHING_DISTANCE,
-    ATTR_DETECTING_REGION,
-    ATTR_EXITS_ENTRANCES_REGION,
-    ATTR_INTERFERENCE_REGION,
-    ATTR_MONITORING_MODE,
-    ATTR_REVERTED_MODE
-    )
+    UNITS,
+    VOLTAGE,
+)
+from .core.gateway import Gateway
 from .core.lock_data import (
-    WITH_LI_BATTERY,
-    SUPPORT_ALARM,
-    SUPPORT_DOORBELL,
-    SUPPORT_CAMERA,
-    SUPPORT_WIFI,
-    LOCK_NOTIFICATION,
     DEVICE_MAPPINGS,
-    )
+    LOCK_NOTIFICATION,
+    SUPPORT_ALARM,
+    SUPPORT_CAMERA,
+    SUPPORT_DOORBELL,
+    SUPPORT_WIFI,
+    WITH_LI_BATTERY,
+)
+from .core.utils import CLUSTERS, Utils
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -83,9 +83,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             async_add_entities([GatewaySleepMonitorSensor(gateway, device, attr)])
         elif attr == 'illuminance':
             if (device['type'] == 'gateway' and
-                    Utils.gateway_illuminance_supported(device['model'])):
-                async_add_entities([GatewaySensor(gateway, device, attr)])
-            elif device['type'] == 'zigbee':
+                    Utils.gateway_illuminance_supported(device['model'])) or device['type'] == 'zigbee':
                 async_add_entities([GatewaySensor(gateway, device, attr)])
         elif attr == 'movements':
             async_add_entities([GatewayMoveSensor(gateway, device, attr)])
@@ -190,7 +188,7 @@ class GatewaySensor(GatewayGenericDevice, SensorEntity):
             if self._attr == POWER and LOAD_POWER in data:
                 self._state = data[LOAD_POWER]
             if self._attr == key:
-                self._state = data[key]
+                self._state = value
         self.async_write_ha_state()
 
 
@@ -238,7 +236,11 @@ class GatewayGasSensor(GatewaySensor):
 class GatewayStats(GatewaySensor):
     """ Aqara Gateway status """
     _state = None
-    _attrs = None
+
+    def __init__(self, gateway, device, attr):
+        """Initialize the gateway stats sensor."""
+        super().__init__(gateway, device, attr)
+        self._attrs = {}
 
     @property
     def device_class(self):
@@ -279,8 +281,13 @@ class ZigbeeStats(GatewaySensor):
     """ Aqara Gateway Zigbee status """
     last_seq1 = None
     last_seq2 = None
-    _attrs = None
+    _attrs: dict
     _state = None
+
+    def __init__(self, gateway, device, attr):
+        """Initialize the zigbee stats sensor."""
+        super().__init__(gateway, device, attr)
+        self._attrs = {}
 
     @property
     def device_class(self):
@@ -331,22 +338,24 @@ class ZigbeeStats(GatewaySensor):
                 raw = data['APSPlayload']
                 manufact_spec = int(raw[2:4], 16) & 4
                 new_seq2 = int(raw[8:10] if manufact_spec else raw[4:6], 16)
-                if self.last_seq1 is not None:
+                last_seq1 = self.last_seq1
+                last_seq2 = self.last_seq2
+                if last_seq1 is not None and last_seq2 is not None:
                     miss = min(
-                        (new_seq1 - self.last_seq1 - 1) & 0xFF,
-                        (new_seq2 - self.last_seq2 - 1) & 0xFF
+                        (new_seq1 - last_seq1 - 1) & 0xFF,
+                        (new_seq2 - last_seq2 - 1) & 0xFF
                     )
                     self._attrs['msg_missed'] += miss
                     self._attrs['last_missed'] = miss
                     if miss:
                         self.debug(
-                            f"Msg missed: {self.last_seq1} => {new_seq1}, "
-                            f"{self.last_seq2} => {new_seq2}, {cluster}"
+                            f"Msg missed: {last_seq1} => {new_seq1}, "
+                            f"{last_seq2} => {new_seq2}, {cluster}"
                         )
                 self.last_seq1 = new_seq1
                 self.last_seq2 = new_seq2
 
-            except:
+            except:  # noqa: E722, S110
                 pass
 
             self._state = now().isoformat(timespec='seconds')

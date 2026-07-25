@@ -14,7 +14,12 @@ from homeassistant.exceptions import PlatformNotReady
 from homeassistant.helpers.device_registry import DeviceRegistry
 from miio import Device, DeviceException
 
-from .const import AIOT_MODELS, SIGMASTAR_MODELS, NO_ALARM_MODE_MODELS, INFRARED_SUPPORTED_MODELS
+from .const import (
+    AIOT_MODELS,
+    INFRARED_SUPPORTED_MODELS,
+    NO_ALARM_MODE_MODELS,
+    SIGMASTAR_MODELS,
+)
 
 SOFT_HACK_REALTEK = {"ssid": "\"\"", "pswd": "123123 ; passwd -d admin ; echo enable > /sys/class/tty/tty/enable; telnetd"}
 SOFT_HACK_SIGMASTAR = {"ssid": "\"\"", "pswd": "123123 ; passwd -d root ; /bin/riu_w 101e 53 3012 ; telnetd"}
@@ -2041,7 +2046,7 @@ class Utils:
             registry.async_remove_device(device.id)
 
     @staticmethod
-    def get_feature_suppported(zigbee_model: str) -> Optional[bool]:
+    def get_feature_suppported(zigbee_model: str) -> dict | None:
         """ return the switch switch power consumption"""
         feature = {
             'is_metric': False,
@@ -2101,56 +2106,45 @@ class Utils:
                 return {"Weak": 0, "Middle Weak": 1, "Middle": 2, "Middle Strong": 3, "Strong": 4}
             if attr == 'warn dry':
                 return {"Off": 0, "Normal": 1, "Low": 2, "Middle Low": 3, "Middle": 4, "Middle High": 5, "High": 6}
-        if zigbee_model in ['lumi.curtain.acn010']:
-            if attr == 'speed':
-                return {"Low": 2, "Middle": 3, "High": 4}
+        if zigbee_model in ['lumi.curtain.acn010'] and attr == 'speed':
+            return {"Low": 2, "Middle": 3, "High": 4}
         return {"Off": 0, "On": 1}
 
     @staticmethod
-    def gateway_illuminance_supported(model: str) -> Optional[bool]:
+    def gateway_illuminance_supported(model: str) -> bool | None:
         """ return the gateway illuminance supported """
-        if model in ('lumi.gateway.acn01', 'lumi.gateway.aeu01'):
-            return True
-        return False
+        return model in ('lumi.gateway.acn01', 'lumi.gateway.aeu01')
 
     @staticmethod
-    def gateway_light_supported(model: str) -> Optional[bool]:
+    def gateway_light_supported(model: str) -> bool | None:
         """ return the gateway light supported """
-        if model in ('lumi.gateway.acn01', 'lumi.gateway.aeu01'):
-            return True
-        return False
+        return model in ('lumi.gateway.acn01', 'lumi.gateway.aeu01')
 
     @staticmethod
-    def gateway_alarm_mode_supported(model: str) -> Optional[bool]:
+    def gateway_alarm_mode_supported(model: str) -> bool | None:
         """ return the gateway alarm mode supported """
         #  basic_cli not support
-        if model not in NO_ALARM_MODE_MODELS:
-            return True
-        return False
+        return model not in NO_ALARM_MODE_MODELS
 
     @staticmethod
-    def gateway_infrared_supported(model: str) -> Optional[bool]:
+    def gateway_infrared_supported(model: str) -> bool | None:
         """ return the gateway infrared supported """
-        if model in INFRARED_SUPPORTED_MODELS:
-            return True
-        return False
+        return model in INFRARED_SUPPORTED_MODELS
 
     @staticmethod
-    def gateway_is_aiot_only(model: str) -> Optional[bool]:
+    def gateway_is_aiot_only(model: str) -> bool | None:
         """ return the gateway is aiot only """
-        if model in AIOT_MODELS:
-            return True
-        return False
+        return model in AIOT_MODELS
 
     @staticmethod
-    def get_device_name(model: str) -> Optional[str]:
+    def get_device_name(model: str) -> str | None:
         """ return the device name """
         if model in DEVICES[0]:
             return DEVICES[0][model][1].lower()
         return ''
 
     @staticmethod
-    def get_info_store_path(model: str) -> Optional[str]:
+    def get_info_store_path(model: str) -> str | None:
         """ return the path of zigbee info """
         if model in ('lumi.camera.gwagl02', 'lumi.camera.gwag03'):
             return '/mnt/config'
@@ -2163,13 +2157,9 @@ class Utils:
             miio_device = Device(host, token)
             device_info = miio_device.info()
 
-            if device_info.model:
-                model = device_info.model
+            model = device_info.model if device_info.model else "Unknown"
             _LOGGER.info(
-                "{} {} {} detected".format(
-                    model,
-                    device_info.firmware_version,
-                    device_info.hardware_version)
+                f"{model} {device_info.firmware_version} {device_info.hardware_version} detected"
             )
             if model in SIGMASTAR_MODELS:
                 ret = miio_device.raw_command(
@@ -2219,18 +2209,18 @@ class AqaraGatewayDebug(logging.Handler, HomeAssistantView):
         super().__init__()
 
         # random url because without authorization!!!
-        self.url = "/{}".format(uuid.uuid4())
+        self.url = f"/{uuid.uuid4()}"
 
         hass.http.register_view(self)
         persistent_notification.async_create(
             hass, message=NOTIFY_TEXT % self.url, title=TITLE)
 
-    def handle(self, rec: logging.LogRecord) -> None:
-        date_time = datetime.fromtimestamp(rec.created).strftime(
+    def handle(self, record: logging.LogRecord) -> bool:
+        date_time = datetime.fromtimestamp(record.created).strftime(  # noqa: DTZ006
             "%Y-%m-%d %H:%M:%S")
-        module = 'main' if rec.module == '__init__' else rec.module
-        self.text = "{} {}  {}  {}  {}\n".format(
-            self.text, date_time, rec.levelname, module, rec.msg)
+        module = 'main' if record.module == '__init__' else record.module
+        self.text = f"{self.text} {date_time}  {record.levelname}  {module}  {record.msg}\n"
+        return True
 
     async def get(self, request: web.Request):
         """ for shortcut """

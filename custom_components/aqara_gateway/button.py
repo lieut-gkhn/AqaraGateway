@@ -34,7 +34,6 @@ class GatewayButton(GatewayGenericDevice, ButtonEntity):
 
     def update(self, data: dict):
         """Buttons are stateless."""
-        return None
 
     def press(self) -> None:
         """Press the button."""

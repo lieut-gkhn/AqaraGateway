@@ -1,30 +1,28 @@
 """Support for Xiaomi Aqara binary sensors."""
 import time
+from typing import ClassVar
 
 from homeassistant.components.automation import ATTR_LAST_TRIGGERED
 from homeassistant.components.binary_sensor import (
-    BinarySensorEntity,
     BinarySensorDeviceClass,
-)
-try:
-    from homeassistant.core_config import DATA_CUSTOMIZE
-except:
-    from homeassistant.config import DATA_CUSTOMIZE
-from homeassistant.helpers.event import async_call_later
-from homeassistant.util.dt import now
-from homeassistant.const import (
-    ATTR_BATTERY_LEVEL,
-    ATTR_VOLTAGE
+    BinarySensorEntity,
 )
 
+try:
+    from homeassistant.core_config import DATA_CUSTOMIZE
+except:  # noqa: E722
+    from homeassistant.config import DATA_CUSTOMIZE
+from homeassistant.const import ATTR_BATTERY_LEVEL, ATTR_VOLTAGE
+from homeassistant.helpers.event import async_call_later
+from homeassistant.util.dt import now
+
 from . import DOMAIN, GatewayGenericDevice
-from .core.gateway import Gateway
 from .core.const import (
     ATTR_ANGLE,
     ATTR_CHIP_TEMPERATURE,
+    ATTR_DENSITY,
     ATTR_ELAPSED_TIME,
     ATTR_FW_VER,
-    ATTR_DENSITY,
     ATTR_LQI,
     ATTR_OPEN_SINCE,
     BATTERY,
@@ -37,13 +35,13 @@ from .core.const import (
     ELAPSED_TIME,
     FW_VER,
     GAS_DENSITY,
-    NO_CLOSE,
     LQI,
-    VOLTAGE,
-    VIBRATION,
+    NO_CLOSE,
     SMOKE_DENSITY,
-    )
-
+    VIBRATION,
+    VOLTAGE,
+)
+from .core.gateway import Gateway
 
 DEVICE_CLASS = {
     'contact': BinarySensorDeviceClass.DOOR,
@@ -107,9 +105,9 @@ class GatewayBinarySensor(GatewayGenericDevice, BinarySensorEntity):
         """Return the class of binary sensor."""
         return DEVICE_CLASS.get(self._attr, self._attr)
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         """Update the sensor state."""
-        if self._attr in data:
+        if data is not None and self._attr in data:
             custom = self.hass.data[DATA_CUSTOMIZE].get(self.entity_id)
             if not custom.get(CONF_INVERT_STATE):
                 # gas and smoke => 1 and 2
@@ -152,8 +150,12 @@ class GatewayNatgasSensor(GatewayBinarySensor, BinarySensorEntity):
         }
         return attrs
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         """ update Natgas sensor """
+
+        if data is None:
+            self.schedule_update_ha_state()
+            return
 
         for key, value in data.items():
             if key == GAS_DENSITY:
@@ -238,8 +240,11 @@ class GatewayMotionSensor(GatewayBinarySensor):
             'entity_id': self.entity_id
         })
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         """ update motion sensor """
+
+        if data is None:
+            return
 
         # https://github.com/AlexxIT/XiaomiGateway3/issues/135
         if 'illuminance' in data and ('lumi.sensor_motion.aq2' in
@@ -358,9 +363,11 @@ class GatewayDoorSensor(GatewayBinarySensor, BinarySensorEntity):
             attrs[ATTR_OPEN_SINCE] = self._open_since
         return attrs
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         """ update door sensor """
 
+        if data is None:
+            return
         for key, value in data.items():
             if key == BATTERY:
                 self._battery = value
@@ -423,9 +430,12 @@ class GatewaWaterLeakSensor(GatewayBinarySensor, BinarySensorEntity):
         }
         return attrs
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         """ update water leak sensor """
         self._should_poll = False
+
+        if data is None:
+            return
 
         for key, value in data.items():
             if key == BATTERY:
@@ -486,8 +496,11 @@ class GatewaySmokeSensor(GatewayBinarySensor, BinarySensorEntity):
         }
         return attrs
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         """ update smoke sensor """
+
+        if data is None:
+            return
 
         for key, value in data.items():
             if key == SMOKE_DENSITY:
@@ -553,9 +566,12 @@ class GatewayButtonSwitch(GatewayBinarySensor, BinarySensorEntity):
         }
         return attrs
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         # pylint: disable=too-many-branches
         """update Button Switch."""
+        if data is None:
+            return
+
         for key, value in data.items():
             if key == BATTERY:
                 self._battery = value
@@ -658,11 +674,12 @@ class GatewayAction(GatewayBinarySensor, BinarySensorEntity):
             self._attrs[ATTR_ANGLE] = self._rotate_angle
         return self._attrs
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         # pylint: disable=too-many-branches
         """update Button Switch."""
         if self.with_rotation:
             self._rotate_angle = None
+        assert data is not None
         for key, value in data.items():
             if key == BATTERY:
                 self._battery = value
@@ -682,7 +699,9 @@ class GatewayAction(GatewayBinarySensor, BinarySensorEntity):
 
             # skip tilt and wait tilt_angle
             if key == 'vibration' and value != 2:
-                data[self._attr] = VIBRATION.get(value, 'unknown')
+                data[self._attr] = VIBRATION.get(
+                    int(value), 'unknown') if isinstance(
+                    value, (int, float)) else 'unknown'
                 break
             if key == 'tilt_angle':
                 data = {'vibration': 2, 'angle': value, self._attr: 'tilt'}
@@ -750,7 +769,7 @@ class GatewayLockDoorState(GatewayBinarySensor):
 
     # Get door state from 'door_state' attr
     # True means open, False means closed
-    DOOR_STATE_MAP = {
+    DOOR_STATE_MAP: ClassVar[dict[int, bool]] = {
         0: True,  # Door is open
         1: False,  # Door is closed
         2: True,  # Door is not close
@@ -762,7 +781,10 @@ class GatewayLockDoorState(GatewayBinarySensor):
     def device_class(self):
         return BinarySensorDeviceClass.DOOR
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
+        if data is None:
+            return
+
         if "lock" in data:
             value = data["lock"]
             if value in GatewayLockDoorState.DOOR_STATE_MAP:
@@ -785,7 +807,10 @@ class GatewayLockLockState(GatewayBinarySensor):
     def device_class(self):
         return BinarySensorDeviceClass.LOCK
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
+        if data is None:
+            return
+
         if self._attr in data:  # _attr: 'auto locking' or 'lock by handle'
             self._state = not data[self._attr]  # 1: Locked
             self.async_write_ha_state()
@@ -806,7 +831,10 @@ class GatewayLockLatchState(GatewayBinarySensor):
     def device_class(self):
         return BinarySensorDeviceClass.LOCK
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
+        if data is None:
+            return
+
         if self._attr in data:  # _attr: 'latch_state'
             self._state = not data[self._attr]  # 0: Unlocked 1: Locked
             self.async_write_ha_state()

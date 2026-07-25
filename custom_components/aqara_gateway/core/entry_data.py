@@ -1,27 +1,27 @@
 """Runtime entry data for Aqara stored in hass.data."""
+from dataclasses import dataclass, fields
 from typing import Optional
 
-import attr
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 
-@attr.s
+@dataclass
 class DeviceInfo:
-    host = attr.ib(type=str, default='')
-    name = attr.ib(type=str, default='')
-    mac_address = attr.ib(type=str, default='')
-    model = attr.ib(type=str, default='')
-    version = attr.ib(type=str, default='')
-    cloud = attr.ib(type=str, default='')
+    host: str = ''
+    name: str = ''
+    mac_address: str = ''
+    model: str = ''
+    version: str = ''
+    cloud: str = ''
 
 
-@attr.s
+@dataclass
 class RuntimeEntryData:
     """Store runtime data for aqara gateway config entries."""
 
-    entry_id: str = attr.ib()
-    device_info: Optional[DeviceInfo] = attr.ib(default=None)
+    entry_id: str
+    device_info: DeviceInfo | None = None
 
     @callback
     def async_update_entity(
@@ -42,4 +42,4 @@ class RuntimeEntryData:
 
 def _attr_obj_from_dict(cls, **kwargs):
     return cls(
-        **{key: kwargs[key] for key in attr.fields_dict(cls) if key in kwargs})
+        **{field.name: kwargs[field.name] for field in fields(cls) if field.name in kwargs})

@@ -1,29 +1,25 @@
 """Support for Aqara Fan."""
 import logging
 
-from homeassistant.core import callback
 from homeassistant.components.fan import (
     FanEntity,
     FanEntityFeature,
 )
+from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNKNOWN
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util.percentage import (
-    ordered_list_item_to_percentage,
-    percentage_to_ordered_list_item
+    percentage_to_ordered_list_item,
 )
-from homeassistant.const import (
-    STATE_OFF, STATE_ON, STATE_UNKNOWN)
 
-from . import DOMAIN, GatewayGenericDevice, gateway_state_property
-from .core.gateway import Gateway
-
-from .core.utils import Utils
+from . import DOMAIN, GatewayGenericDevice
 from .core.const import (
-    ATTR_LQI,
     CHIP_TEMPERATURE,
     FW_VER,
     LQI,
 )
+from .core.gateway import Gateway
+from .core.utils import Utils
+
 SPEED_OFF = "off"
 
 FAN_SPEED = {
@@ -140,14 +136,14 @@ class GatewayFan(GatewayGenericDevice, FanEntity, RestoreEntity):
             self._speed = percentage_to_ordered_list_item(
                 self._speed_list, percentage)
 
-        if not self._speed == SPEED_OFF:
+        if self._speed != SPEED_OFF:
             self._last_on_speed = self._speed
 
         _LOGGER.error(f"aqara.vent.eicn01 set percentage {self._attr} {self._speed} {FAN_SPEED[self._speed]}")
         self.gateway.send(self.device, {'fan_mode': FAN_SPEED[self._speed]})
         self.async_write_ha_state()
 
-    async def async_turn_on(self, percentage: int = None, preset_mode: str = None, **kwargs):
+    async def async_turn_on(self, percentage: int | None = None, preset_mode: str | None = None, **kwargs):
         """Turn on the fan."""
         _LOGGER.error(f"aqara.vent.eicn01 set on {self._attr}")
         self.gateway.send(self.device, {'power': 1})

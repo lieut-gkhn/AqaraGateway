@@ -2,8 +2,8 @@
 import logging
 
 from homeassistant.components import persistent_notification
-from homeassistant.helpers.entity import ToggleEntity
 from homeassistant.helpers.debounce import Debouncer
+from homeassistant.helpers.entity import ToggleEntity
 
 from . import DOMAIN, GatewayGenericDevice
 from .core.gateway import Gateway
@@ -93,6 +93,7 @@ class GatewayRemote(GatewayGenericDevice, ToggleEntity):
             self.device, {'did': 'lumi.0', 'paring': 60})
         self.async_write_ha_state()
         self._state = False
+        assert self.async_refresh_toggle is not None
         await self.async_refresh_toggle.async_call()
 
     async def async_turn_off(self, **kwargs):
@@ -101,6 +102,7 @@ class GatewayRemote(GatewayGenericDevice, ToggleEntity):
         self.gateway.send(
             self.device, {'did': 'lumi.0', 'paring': 0})
         self.async_write_ha_state()
+        assert self.async_refresh_toggle is not None
         self.async_refresh_toggle.async_cancel()
 
     async def async_send_command(self, command, **kwargs):
@@ -121,6 +123,7 @@ class GatewayRemote(GatewayGenericDevice, ToggleEntity):
                     self.device, {'did': 'lumi.0', 'paring': 60})
                 self.async_write_ha_state()
                 self._state = False
+                assert self.async_refresh_toggle is not None
                 await self.async_refresh_toggle.async_call()
             elif cmd == 'power':
                 self.gateway.send(self.device, {'power_tx': int(args[1])})

@@ -13,16 +13,15 @@ from homeassistant.const import (
     ATTR_BATTERY_LEVEL,
     STATE_CLOSING,
     STATE_OPENING,
-    STATE_UNKNOWN
+    STATE_UNKNOWN,
 )
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import GatewayGenericDevice
-from .core.gateway import Gateway
 from .core.const import (
+    ATTR_CHIP_TEMPERATURE,
     ATTR_FW_VER,
     ATTR_LQI,
-    ATTR_CHIP_TEMPERATURE,
     BATTERY,
     CHIP_TEMPERATURE,
     DOMAIN,
@@ -30,6 +29,7 @@ from .core.const import (
     LQI,
     RUN_STATES,
 )
+from .core.gateway import Gateway
 
 ATTR_POLARITY = 'polarity'
 ATTR_MOTOR_STROKE = 'motor stroke'
@@ -121,12 +121,13 @@ class XiaomiGenericCover(GatewayGenericDevice, CoverEntity, RestoreEntity):
             return None
         return position == 0
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         """ update state """
+        if data is None:
+            return
         for key, value in data.items():
-            if key == BATTERY:
-                if hasattr(self, "_battery"):
-                    self._battery = value
+            if key == BATTERY and hasattr(self, "_battery"):
+                self._battery = value
             if key == CHIP_TEMPERATURE:
                 self._chip_temperature = value
             if key == FW_VER or key == 'back_version':
@@ -214,7 +215,7 @@ class AqaraRollerShadeE1(XiaomiGenericCover):
 
     def __init__(self, gateway, device, atrr):
         super().__init__(gateway, device, atrr)
-        self._mi_mode = True if device.get('mi_spec') else False
+        self._mi_mode = bool(device.get('mi_spec'))
 
     def stop_cover(self, **kwargs):
         if self._mi_mode:
@@ -254,13 +255,18 @@ class AqaraVerticalBlindsController(XiaomiGenericCover):
 
     async def async_added_to_hass(self):
         """Run when entity about to be added to hass."""
-        if (last_state := await self.async_get_last_state()) is not None:
-            if (tilt_position := last_state.attributes.get(ATTR_CURRENT_TILT_POSITION)) is not None:  # 0~100
-                self._tilt_angle = 90 - (tilt_position / 100 * 90)
+        if (
+            (last_state := await self.async_get_last_state()) is not None
+            and (tilt_position := last_state.attributes.get(ATTR_CURRENT_TILT_POSITION)) is not None
+        ):
+            self._tilt_angle = 90 - (tilt_position / 100 * 90)
         await super().async_added_to_hass()
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         """ update state """
+        if data is None:
+            super().update(data)
+            return
         if TILT_POSITION in data:
             value = data[TILT_POSITION]  # value is -90~90
             self._tilt_angle = value
@@ -290,6 +296,8 @@ class AqaraVerticalBlindsController(XiaomiGenericCover):
     def set_cover_tilt_position(self, **kwargs):
         """Move the cover tilt to a specific position."""
         tilt_position = kwargs.get(ATTR_TILT_POSITION)  # 0~100
+        if tilt_position is None:
+            return
         if (self._tilt_angle or 0) >= 0:
             self.gateway.send(self.device, {'tilt_position': 90 - (tilt_position / 100 * 90)})  # 0~90
         else:
@@ -317,7 +325,7 @@ class AqaraCurtainMotorC4(XiaomiGenericCover):
             )
         super().__init__(gateway, device, atrr)
 
-    def update(self, data: dict = None):
+    def update(self, data: dict | None = None):
         """Update only the matching state for this entity."""
         payload = {}
         data = data or {}
@@ -360,6 +368,6 @@ class AqaraCurtainMotorC4(XiaomiGenericCover):
     def set_cover_position(self, **kwargs):
         """Move the cover to a specific position."""
         if self._attr == 'motor':
-            return None
+            return
         position = kwargs.get(ATTR_POSITION)
         self.gateway.send(self.device, {self._attr: position})

@@ -3,12 +3,12 @@
 from homeassistant.components.cover import CoverState
 from homeassistant.components.lock import LockState
 from homeassistant.const import (
-    LIGHT_LUX,
-    PERCENTAGE,
     CONCENTRATION_PARTS_PER_BILLION,
     CONCENTRATION_PARTS_PER_MILLION,
+    LIGHT_LUX,
     MAJOR_VERSION,
     MINOR_VERSION,
+    PERCENTAGE,
     UnitOfEnergy,
     UnitOfPower,
     UnitOfPressure,

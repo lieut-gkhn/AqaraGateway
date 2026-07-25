@@ -1,12 +1,11 @@
 """Support for Aqara Select."""
 
-from homeassistant.core import callback
 from homeassistant.components.select import SelectEntity
+from homeassistant.core import callback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import DOMAIN, GatewayGenericDevice, gateway_state_property
 from .core.gateway import Gateway
-
 from .core.utils import Utils
 
 
@@ -54,16 +53,19 @@ class GatewaySelect(GatewayGenericDevice, SelectEntity, RestoreEntity):
         """Restore last state."""
         await super().async_added_to_hass()
         self._map = Utils.get_select_options(self.device["model"], self._attr)
+        assert self._map is not None
         self._attr_options = list(self._map.keys())
 
     def update(self, data: dict = None):
         """update switch."""
-        for key, value in data.items():
+        for key in data:
             if key == self._attr:
+                assert self._map is not None
                 self._attr_current_option = list(
                     self._map.keys())[list(self._map.values()).index(data[self._attr])]
         self.async_write_ha_state()
 
     async def async_select_option(self, option: str):
         """ set select option"""
+        assert self._map is not None
         self.gateway.send(self.device, {self._attr: self._map[option]})

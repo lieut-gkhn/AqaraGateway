@@ -1,21 +1,22 @@
+#!/usr/bin/env python3
 """ Aqara Gateway """
 import logging
 import math
-import voluptuous as vol
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import MAJOR_VERSION, MINOR_VERSION
-from homeassistant.core import HomeAssistant, Event
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_registry import EntityRegistry
 from homeassistant.helpers.system_info import async_get_system_info
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
 
+from .core.const import CONF_DEBUG, DOMAIN, DOMAINS
 from .core.gateway import Gateway
 from .core.utils import AqaraGatewayDebug
-from .core.const import DOMAINS, DOMAIN, CONF_DEBUG
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,10 +47,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Support Aqara Gateway."""
 
     # migrate data (also after first setup) to options
-    if (len(entry.options) == 0):
-        if entry.data:
-            hass.config_entries.async_update_entry(entry, data={},
-                                                options=entry.data)
+    if len(entry.options) == 0 and entry.data:
+        hass.config_entries.async_update_entry(entry, data={},
+                                               options=entry.data)
 
     if "model" not in entry.options or "password" not in entry.options:
         _LOGGER.error("The model is missing while setupping entry!")
@@ -280,4 +280,4 @@ class GatewayGenericDevice(Entity):
 
     def update(self, data: dict):
         """ update """
-        pass
+        #pass
