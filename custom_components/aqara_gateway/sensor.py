@@ -1,4 +1,7 @@
 """Support for Xiaomi Aqara sensors."""
+import re
+from homeassistant.helpers.event import async_track_time_interval
+
 from datetime import timedelta
 from typing import Optional
 
@@ -89,11 +92,60 @@ async def async_setup_entry(hass, entry, async_add_entities):
             async_add_entities([GatewayMoveSensor(gateway, device, attr)])
         elif attr == 'occupancy_region':
             async_add_entities([GatewayOccupancyRegionSensor(gateway, device, attr)])
+        
+        elif attr == "wifi_ip":
+            async_add_entities([GatewaySystemSensor(gateway, device, attr)])
+        elif attr == "temperature":
+            async_add_entities([GatewaySystemSensor(gateway, device, attr)])
+        elif attr == "volume":
+            async_add_entities([GatewaySystemSensor(gateway, device, attr)])
+        #elif attr in (
+        #    "wifi_ip",
+        #    "temperature",
+        #    "radio_channel",
+        #    "network_pan_id",
+        #    "radio_tx_power",
+        #    "rssi",
+        #):
+        #    async_add_entities(
+        #        [GatewaySystemSensor(gateway, device, attr)]
+        #    )
         else:
             async_add_entities([GatewaySensor(gateway, device, attr)])
 
     aqara_gateway: Gateway = hass.data[DOMAIN][entry.entry_id]
     aqara_gateway.add_setup('sensor', setup)
+
+    gateway_device = next(
+        (
+            dev
+            for dev in aqara_gateway.devices.values()
+            if dev["type"] == "gateway"
+        ),
+        None,
+    )
+
+    if gateway_device:
+        async_add_entities(
+            [
+                GatewaySystemSensor(
+                    aqara_gateway,
+                    gateway_device,
+                    "wifi_ip",
+                ),
+                GatewaySystemSensor(
+                    aqara_gateway,
+                    gateway_device,
+                    "temperature",
+                ),
+                GatewaySystemSensor(
+                    aqara_gateway,
+                    gateway_device,
+                    "volume",
+                ),
+            ],
+            True,
+        )
 
 
 async def async_unload_entry(hass, entry):
@@ -621,3 +673,81 @@ class GatewayOccupancyRegionSensor(GatewaySensor):
             ATTR_REVERTED_MODE: self._reverted_mode
         }
         return attrs
+
+class GatewaySystemSensor(SensorEntity):
+    def __init__(self, gateway, device, attr):
+        self.gateway = gateway
+        self.device = device
+        self.attr = attr
+
+        self._attr_name = f"{device['model']} {attr}"
+        self._attr_unique_id = f"{device['did']}_{attr}"
+
+        self._attr_native_value = None
+        self._attr_available = True
+
+    async def async_added_to_hass(self):
+        self.async_on_remove(
+            async_track_time_interval(
+                self.hass,
+                self._update,
+                timedelta(seconds=60),
+            )
+        )
+
+        await self._update(None)
+
+    async def _update(self, _):
+
+        shell = self.gateway._get_shell(
+            Utils.get_device_name(
+                self.gateway._model
+            ).lower()
+        )
+
+        try:
+            shell.login()
+
+            if self.attr == "wifi_ip":
+                raw = shell.run_command(
+                    "ifconfig wlan0 | grep 'inet addr'"
+                )
+
+                m = re.search(
+                    r"(?:\d{1,3}\.){3}\d{1,3}",
+                    raw,
+                )
+
+                if m:
+                    self._attr_native_value = m.group(0)
+
+            elif self.attr == "temperature":
+
+                raw = shell.run_command(
+                    "getprop persist.sys.temperature"
+                )
+
+                self._attr_native_value = float(
+                    raw.strip()
+                )
+
+            elif self.attr == "volume":
+
+                raw = shell.run_command(
+                    "getprop persist.sys.volume"
+                )
+
+                self._attr_native_value = int(
+                    raw.strip()
+                )
+
+        except Exception:
+            self._attr_available = False
+
+        finally:
+            try:
+                shell.close()
+            except Exception:
+                pass
+
+        self.async_write_ha_state()
