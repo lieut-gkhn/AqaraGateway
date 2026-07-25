@@ -496,21 +496,21 @@ class Gateway:
                         self.setups['sensor'](self, device, 'last_seen')
 
                 for param in (device['params'] or device['mi_spec']):
-                    _LOGGER.warning(
-                        "DEVICE=%s PARAMS=%s",
-                        device["model"],
-                        device["params"] or device["mi_spec"],
-                    )
+                    #_LOGGER.warning(
+                    #    "DEVICE=%s PARAMS=%s",
+                    #    device["model"],
+                    #    device["params"] or device["mi_spec"],
+                    #)
                     self.debug(f"SETUP PARAM: {device['model']} -> {param}")
                     domain = param[3]
-                    _LOGGER.warning(
-                        "ATTR=%s DOMAIN=%s",
-                        param[2],
-                        domain,
-        )
+                    #_LOGGER.warning(
+                    #    "ATTR=%s DOMAIN=%s",
+                    #    param[2],
+                    #    domain,
+        #)
                     if not domain:
                         continue
-                        self.debug(f"DOMAIN = {domain}")
+                    #    self.debug(f"DOMAIN = {domain}")
 
                     # wait domain init
                     while domain not in self.setups and timeout > 0:
@@ -540,7 +540,7 @@ class Gateway:
         """ remove gateway stats """
         self._extra_state_attributes.pop(ieee)
 
-    def process_gateway_stats(self, payload: dict = None):
+    def process_gateway_stats(self, payload: dict | None = None):
         """ process gateway status """
         # empty payload - update available state
         self.debug(f"gateway <= {payload or self.available}")
@@ -649,7 +649,7 @@ class Gateway:
             return
 
         if prop == 'paring' and value == 0:
-            device_name = Utils.get_device_name(self._model).lower()
+            device_name = (Utils.get_device_name(self._model) or '').lower()
             shell = self._get_shell(device_name)
             shell.login()
             zb_device = shell.get_prop("sys.zb_device")
