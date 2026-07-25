@@ -1,7 +1,6 @@
 """Config flow to configure aqara gateway component."""
 import socket
 from collections import OrderedDict
-from typing import Optional
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -13,11 +12,6 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PASSWORD, CONF_TOKEN
 from homeassistant.core import callback
-from homeassistant.helpers.selector import (
-    #NumberSelector,
-    #NumberSelectorConfig,
-    #NumberSelectorMode,
-)
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.util.network import is_ip_address
 
@@ -47,12 +41,12 @@ class AqaraGatewayFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[report
 
     def __init__(self):
         """Initialize flow."""
-        self._host: Optional[str] = None
-        self._password: Optional[str] = None
-        self._token: Optional[str] = None
-        self._model: Optional[str] = None
-        self._device_info: Optional[str] = None
-        self._patched_fw: Optional[bool] = False
+        self._host: str | None = None
+        self._password: str | None = None
+        self._token: str | None = None
+        self._model: str | None = None
+        self._device_info: str | None = None
+        self._patched_fw: bool | None = False
 
     @staticmethod
     @callback
@@ -62,8 +56,8 @@ class AqaraGatewayFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[report
 
     async def async_step_user(
         self,
-        user_input: Optional[ConfigType] = None,
-        error: Optional[str] = None
+        user_input: ConfigType | None = None,
+        error: str | None = None
     ):  # pylint: disable=arguments-differ
         """Handle a flow initialized by the user."""
         if user_input is not None:
@@ -100,7 +94,7 @@ class AqaraGatewayFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[report
 
             return self._async_get_entry()
 
-        for name, _ in OPT_DEVICE_NAME.items():
+        for name in OPT_DEVICE_NAME:
             if self._name and name in self._name.lower():
                 self._model = name
                 break
@@ -174,8 +168,6 @@ class AqaraGatewayFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[report
         if user_input is not None:
             return await self._async_add(user_input)
 
-        debug = []
-        ignore_offline = True
 
         return self.async_show_form(
             step_id="discovery_confirm",
@@ -195,7 +187,7 @@ class AqaraGatewayFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[report
     async def async_step_zeroconf(self, discovery_info: DiscoveryInfoType):
         """Handle zeroconf discovery."""
         # Hostname is format: _aqara._tcp.local., _aqara-setup._tcp.local.
-        if getattr(discovery_info, "hostname"):
+        if discovery_info.hostname:
             local_name = discovery_info.hostname[:-1]
             node_name = local_name[: -len(".local")]
             address = discovery_info.properties.get(
@@ -231,10 +223,7 @@ class AqaraGatewayFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[report
             if CONF_HOST in entry.data and entry.data[CONF_HOST] in [
                 address,
                 self._host,
-            ]:
-                # Is this address or IP address already configured?
-                already_configured = True
-            elif CONF_HOST in entry.options and entry.options[CONF_HOST] in [
+            ] or CONF_HOST in entry.options and entry.options[CONF_HOST] in [
                 address,
                 self._host,
             ]:
