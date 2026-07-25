@@ -2212,8 +2212,9 @@ class AqaraGatewayDebug(logging.Handler, HomeAssistantView):
         self.url = f"/{uuid.uuid4()}"
 
         hass.http.register_view(self)
-        persistent_notification.async_create(
-            hass, message=NOTIFY_TEXT % self.url, title=TITLE)
+        return
+        #persistent_notification.async_create(
+        #    hass, message=NOTIFY_TEXT % self.url, title=TITLE)
 
     def handle(self, record: logging.LogRecord) -> bool:
         date_time = datetime.fromtimestamp(record.created).strftime(  # noqa: DTZ006
